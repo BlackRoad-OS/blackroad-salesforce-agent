@@ -25,6 +25,7 @@ class AuthConfig:
     password: str
     security_token: str = ""
     domain: str = "login"  # "login", "test", or custom domain
+    sfdx_auth_file: Optional[str] = None  # Path to SFDX auth file for CLI token reuse
 
 
 @dataclass
@@ -255,6 +256,61 @@ class SalesforceAuth:
             self.token_cache_path.unlink()
 
         logger.info("token_revoked")
+
+    @classmethod
+    def from_sfdx(cls, username: str = None, sfdx_dir: str = "~/.sfdx") -> 'SalesforceAuth':
+        """
+        Create SalesforceAuth from existing SF CLI authentication.
+
+        This allows reusing tokens from `sf org login` without needing
+        Connected App credentials.
+
+        Args:
+            username: Salesforce username (will search for auth file)
+            sfdx_dir: Directory containing SFDX auth files
+
+        Returns:
+            Configured SalesforceAuth instance with valid token
+        """
+        sfdx_path = Path(sfdx_dir).expanduser()
+
+        # Find auth file
+        if username:
+            auth_file = sfdx_path / f"{username}.json"
+        else:
+            # Find first .json file
+            json_files = list(sfdx_path.glob("*.json"))
+            json_files = [f for f in json_files if f.name != "alias.json"]
+            if not json_files:
+                raise AuthenticationError("No SFDX auth files found")
+            auth_file = json_files[0]
+
+        if not auth_file.exists():
+            raise AuthenticationError(f"Auth file not found: {auth_file}")
+
+        with open(auth_file) as f:
+            data = json.load(f)
+
+        # Create instance
+        instance = cls(
+            consumer_key=data.get("clientId", "PlatformCLI"),
+            consumer_secret="",
+            username=data["username"],
+            instance_url=data["instanceUrl"]
+        )
+
+        # Set token directly
+        instance._token = TokenInfo(
+            access_token=data["accessToken"],
+            refresh_token=data.get("refreshToken"),
+            instance_url=data["instanceUrl"],
+            token_type="Bearer",
+            issued_at=time.time(),
+            expires_in=7200
+        )
+
+        logger.info("loaded_sfdx_auth", username=data["username"], instance=data["instanceUrl"])
+        return instance
 
 
 class AuthenticationError(Exception):
