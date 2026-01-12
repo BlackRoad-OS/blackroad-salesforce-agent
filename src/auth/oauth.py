@@ -17,6 +17,17 @@ logger = structlog.get_logger()
 
 
 @dataclass
+class AuthConfig:
+    """Configuration for Salesforce authentication"""
+    client_id: str
+    client_secret: str
+    username: str
+    password: str
+    security_token: str = ""
+    domain: str = "login"  # "login", "test", or custom domain
+
+
+@dataclass
 class TokenInfo:
     """OAuth token information"""
     access_token: str
@@ -61,22 +72,36 @@ class SalesforceAuth:
 
     def __init__(
         self,
-        consumer_key: str,
-        consumer_secret: str,
-        username: str,
+        config: Optional[AuthConfig] = None,
+        consumer_key: str = None,
+        consumer_secret: str = None,
+        username: str = None,
         password: Optional[str] = None,
         security_token: Optional[str] = None,
         instance_url: Optional[str] = None,
         is_sandbox: bool = False,
         token_cache_path: Optional[str] = None
     ):
-        self.consumer_key = consumer_key
-        self.consumer_secret = consumer_secret
-        self.username = username
-        self.password = password
-        self.security_token = security_token or ""
-        self.instance_url = instance_url
-        self.is_sandbox = is_sandbox
+        # Support both AuthConfig and direct params
+        if config:
+            self.consumer_key = config.client_id
+            self.consumer_secret = config.client_secret
+            self.username = config.username
+            self.password = config.password
+            self.security_token = config.security_token or ""
+            self.is_sandbox = config.domain == "test"
+            if config.domain not in ("login", "test"):
+                self.instance_url = f"https://{config.domain}.my.salesforce.com"
+            else:
+                self.instance_url = instance_url
+        else:
+            self.consumer_key = consumer_key
+            self.consumer_secret = consumer_secret
+            self.username = username
+            self.password = password
+            self.security_token = security_token or ""
+            self.instance_url = instance_url
+            self.is_sandbox = is_sandbox
 
         self.token_cache_path = Path(token_cache_path or "~/.blackroad/sf_token.json").expanduser()
         self._token: Optional[TokenInfo] = None
