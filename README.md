@@ -1,182 +1,211 @@
 # BlackRoad Salesforce Agent
 
-**Autonomous AI agent that turns 1 Salesforce seat into unlimited scale.**
-
-```
-30,000,000,000 users
-        ↓
-   This Agent (running on Pi cluster)
-        ↓
-   Salesforce API (1 seat @ $330/mo)
-        ↓
-   Unlimited CRM operations
-```
-
-## The Concept
-
-Salesforce charges per human clicking buttons. This agent clicks for you - 24/7, at API speed, serving billions of users through a single $330/month seat.
-
-## Features
-
-- **OAuth 2.0 Authentication** - Secure, token-refreshing connection
-- **Full CRUD Operations** - Create, Read, Update, Delete on all objects
-- **SOQL Query Engine** - Complex queries with relationship traversal
-- **Bulk Operations** - Handle thousands of records efficiently
-- **Autonomous Task Queue** - Process requests without human intervention
-- **Pi Cluster Ready** - Optimized for Raspberry Pi deployment
-- **78 TOPS AI Integration** - Local inference via Hailo-8
+Autonomous agent that maximizes a single Salesforce API seat. Instead of paying per human user, this agent handles CRM operations programmatically — 24/7, at API speed.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    BLACKROAD SALESFORCE AGENT                   │
+│                    BLACKROAD SALESFORCE AGENT                    │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   OAuth     │  │   SOQL      │  │   Bulk      │             │
-│  │   Manager   │  │   Engine    │  │   Processor │             │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
-│         │                │                │                     │
-│  ┌──────┴────────────────┴────────────────┴──────┐             │
-│  │              Salesforce REST API              │             │
-│  └───────────────────────┬───────────────────────┘             │
-│                          │                                      │
-│  ┌───────────────────────┴───────────────────────┐             │
-│  │                 Task Queue                     │             │
-│  │   • Redis/SQLite backed                       │             │
-│  │   • Priority processing                       │             │
-│  │   • Retry logic                               │             │
-│  └───────────────────────────────────────────────┘             │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                   Object Handlers                        │   │
-│  │   • Client_Household__c    • Distribution_Request__c    │   │
-│  │   • Financial_Account__c   • Mortality_Event__c         │   │
-│  │   • Compliance_Log__c      • Connected_CRM__c           │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │   OAuth      │  │   SOQL      │  │   Bulk      │              │
+│  │   Manager    │  │   Engine    │  │   Processor  │              │
+│  └──────┬───────┘  └──────┬──────┘  └──────┬──────┘              │
+│         │                 │                 │                     │
+│  ┌──────┴─────────────────┴─────────────────┴──────┐             │
+│  │              Salesforce REST API v59.0           │             │
+│  └──────────────────────┬──────────────────────────┘             │
+│                         │                                        │
+│  ┌──────────────────────┴──────────────────────────┐             │
+│  │               Task Queue (SQLite)                │             │
+│  │   • Priority-based ordering                      │             │
+│  │   • Automatic retries (configurable)             │             │
+│  │   • Per-agent task assignment                    │             │
+│  └──────────────────────────────────────────────────┘             │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────┐            │
+│  │              Agent (ThreadPoolExecutor)           │            │
+│  │   • Configurable worker threads                  │            │
+│  │   • Adaptive polling                             │            │
+│  │   • Graceful shutdown (SIGINT/SIGTERM)           │            │
+│  └──────────────────────────────────────────────────┘            │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+## Features
+
+- **OAuth 2.0 Authentication** — Username-password flow with automatic token refresh and disk caching
+- **SFDX CLI Auth Reuse** — Reuse existing Salesforce CLI tokens (no Connected App needed for dev)
+- **Full CRUD Operations** — Create, Read, Update, Delete, Upsert on all Salesforce objects
+- **SOQL Query Engine** — Queries with automatic pagination via `query_all()`
+- **SOSL Search** — Full-text search across objects
+- **Composite API** — Multiple operations in a single API call
+- **Bulk API 2.0** — Insert, update, upsert, delete for large record sets (10,000+ records/batch)
+- **Task Queue** — SQLite-backed priority queue with retry logic
+- **Autonomous Mode** — Threaded agent pulls tasks from queue and processes them 24/7
+- **Daemon Mode** — Systemd-compatible daemon for production deployment
+
+## Project Structure
+
+```
+src/
+├── __init__.py                   # Public API exports
+├── main.py                       # Entry point with YAML config loading
+├── daemon.py                     # Systemd daemon mode
+├── run_sfdx.py                   # SFDX auth mode with interactive CLI
+├── auth/
+│   └── oauth.py                  # OAuth 2.0 + SFDX token management
+├── api/
+│   ├── client.py                 # REST API client (CRUD, SOQL, Composite)
+│   └── bulk.py                   # Bulk API 2.0 client
+├── agents/
+│   └── salesforce_agent.py       # Core autonomous agent
+└── queue/
+    └── task_queue.py             # SQLite-backed task queue
+
+tests/
+└── test_queue.py                 # Task queue tests
+
+scripts/
+├── deploy.sh                     # Single-node deployment
+└── swarm.sh                      # Multi-instance agent controller
+
+config/
+└── config.example.yaml           # Configuration template
 ```
 
 ## Installation
 
 ```bash
-# Clone
 git clone https://github.com/BlackRoad-OS/blackroad-salesforce-agent.git
 cd blackroad-salesforce-agent
 
-# Install dependencies
 pip install -r requirements.txt
 
 # Configure
 cp config/config.example.yaml config/config.yaml
 # Edit config.yaml with your Salesforce credentials
-
-# Run
-python -m src.main
 ```
 
 ## Configuration
 
 ```yaml
 salesforce:
-  instance_url: https://securianfinancial-4e-dev-ed.develop.my.salesforce.com
-  consumer_key: ${SALESFORCE_CONSUMER_KEY}
-  consumer_secret: ${SALESFORCE_CONSUMER_SECRET}
-  username: alexa@alexa.com
+  client_id: "YOUR_CONNECTED_APP_CLIENT_ID"
+  client_secret: "YOUR_CONNECTED_APP_CLIENT_SECRET"
+  username: "your.email@company.com"
+  password: "your_password"
+  security_token: "your_security_token"
+  domain: "login"  # "login" for production, "test" for sandbox
 
 agent:
-  name: blackroad-sf-agent-001
-  queue_backend: sqlite  # or redis
-  max_concurrent: 10
-  retry_attempts: 3
+  max_workers: 4
+  poll_interval: 1.0
+  batch_size: 200
 
-pi_cluster:
-  node: lucidia  # or aria, octavia, alice
-  hailo_enabled: true
+queue:
+  backend: "sqlite"
+  db_path: "~/.blackroad/task_queue.db"
 ```
+
+Environment variables override config values: `SF_CLIENT_ID`, `SF_CLIENT_SECRET`, `SF_USERNAME`, `SF_PASSWORD`, `SF_SECURITY_TOKEN`, `SF_DOMAIN`.
 
 ## Usage
 
+### Direct API Access
+
 ```python
-from src.agent import SalesforceAgent
+from src.agents import SalesforceAgent
+from src.agents.salesforce_agent import AgentConfig
 
-# Initialize
-agent = SalesforceAgent()
+config = AgentConfig(
+    client_id="...",
+    client_secret="...",
+    username="...",
+    password="...",
+    security_token="..."
+)
+agent = SalesforceAgent(config)
+agent.auth.authenticate()
 
-# Query households
-households = agent.query(
-    "SELECT Id, Name, Total_AUM__c FROM Client_Household__c WHERE Total_AUM__c > 1000000"
+# Query
+records = agent.query(
+    "SELECT Id, Name FROM Account WHERE CreatedDate = TODAY"
 )
 
-# Create distribution request
-agent.create('Distribution_Request__c', {
-    'Household__c': household_id,
-    'Gross_Amount__c': 50000,
-    'Status__c': 'Pending Approval'
-})
+# Create
+record_id = agent.create('Account', {'Name': 'Acme Corp'})
 
-# Bulk update
-agent.bulk_update('Client_Household__c', [
-    {'Id': id1, 'Last_Review_Date__c': today},
-    {'Id': id2, 'Last_Review_Date__c': today},
-    # ... thousands more
-])
+# Update
+agent.update('Account', record_id, {'Name': 'Acme Corporation'})
+
+# Delete
+agent.delete('Account', record_id)
 ```
 
-## Autonomous Mode
+### Autonomous Mode
 
 ```python
-# Start autonomous processing
-agent.start_autonomous()
+# Start the agent — it will pull tasks from the queue and process them
+agent.start()
 
-# The agent will:
-# - Poll task queue every 100ms
-# - Process incoming requests
-# - Handle retries automatically
-# - Log all actions for compliance
-# - Run 24/7 without intervention
+# Submit tasks to the queue (from another process or thread)
+agent.submit_task("create", "Account", {"Name": "New Account"})
+agent.submit_task("query", "Account", {"soql": "SELECT Id FROM Account LIMIT 10"})
 ```
 
-## Pi Cluster Deployment
+### SFDX Auth Mode (Development)
 
 ```bash
-# Deploy to Lucidia (primary AI node)
-./scripts/deploy.sh lucidia
+# Reuse your existing SF CLI auth — no Connected App required
+python -m src.run_sfdx --username your.email@company.com --test
+```
 
-# Deploy to full cluster
-./scripts/deploy-cluster.sh
+### Daemon Mode
 
-# Check status
-./scripts/cluster-status.sh
+```bash
+python -m src.daemon --username your.email@company.com
+```
+
+### Running from Config
+
+```bash
+python -m src.main --config config/config.yaml --workers 8
+```
+
+## Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Deployment
+
+```bash
+# Deploy single instance
+./scripts/deploy.sh
+
+# Deploy multiple instances
+./scripts/deploy.sh --count 10
+
+# Manage swarm
+./scripts/swarm.sh status
+./scripts/swarm.sh start 50
+./scripts/swarm.sh scale 100
+./scripts/swarm.sh stop
 ```
 
 ## API Limits
 
-Salesforce API limits are generous:
+Salesforce API limits per edition:
 - **15,000+ API calls/day** on basic plans
-- **Bulk API** for large operations (10,000 records/batch)
-- **Composite API** for related operations
+- **Bulk API**: 10,000 records/batch
+- **Composite API**: Multiple operations per call
 
-This agent optimizes calls through:
-- Request batching
-- Smart caching
-- Composite requests
-- Bulk operations
-
-## The Math
-
-| Metric | Human User | This Agent |
-|--------|------------|------------|
-| Actions/day | ~50 | 100,000+ |
-| Hours/day | 8 | 24 |
-| Error rate | Variable | <0.01% |
-| Cost | $330/mo/user | $330/mo total |
+The agent optimizes usage through request batching, bulk operations, and composite requests.
 
 ## License
 
-BlackRoad OS, Inc. - Proprietary
-
----
-
-*$330/month. Unlimited scale. Their pricing model cannot comprehend this.*
+BlackRoad OS, Inc. — Proprietary. See [LICENSE](LICENSE).

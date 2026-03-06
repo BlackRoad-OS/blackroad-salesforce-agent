@@ -1,5 +1,5 @@
 # .github/workflows/autonomous-agent.yml
-# Drop this in any repo - agent handles everything
+# CI workflow for BlackRoad Salesforce Agent
 
 name: Autonomous Repo Agent
 
@@ -8,13 +8,10 @@ on:
     types: [opened, synchronize]
   push:
     branches: [main]
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours, agent checks in
 
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 
 jobs:
   autonomous-build:
@@ -23,50 +20,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
-      - name: Detect Project Type & Run Tests
-        id: detect
-        run: |
-          # Auto-detect and run appropriate tests
-          if [ -f "package.json" ]; then
-            npm ci --ignore-scripts 2>/dev/null || npm install --ignore-scripts 2>/dev/null || true
-            npm test 2>/dev/null || echo "tests=skipped" >> $GITHUB_OUTPUT
-          elif [ -f "requirements.txt" ]; then
-            pip install -r requirements.txt 2>/dev/null || true
-            pytest 2>/dev/null || python -m unittest discover 2>/dev/null || echo "tests=skipped" >> $GITHUB_OUTPUT
-          elif [ -f "Cargo.toml" ]; then
-            cargo test 2>/dev/null || echo "tests=skipped" >> $GITHUB_OUTPUT
-          elif [ -f "go.mod" ]; then
-            go test ./... 2>/dev/null || echo "tests=skipped" >> $GITHUB_OUTPUT
-          elif [ -f "sfdx-project.json" ]; then
-            # Salesforce - just validate XML
-            find . -name "*.xml" -exec xmllint --noout {} \; 2>/dev/null || true
-            echo "tests=skipped" >> $GITHUB_OUTPUT
-          else
-            echo "tests=skipped" >> $GITHUB_OUTPUT
-          fi
-          echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Build if needed
-        run: |
-          if [ -f "package.json" ]; then
-            npm run build 2>/dev/null || true
-          fi
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-      - name: Auto-merge PR
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies
         run: |
-          # Enable auto-merge immediately - don't wait
-          gh pr merge ${{ github.event.pull_request.number }} --auto --squash || \
-          gh pr merge ${{ github.event.pull_request.number }} --squash --admin || \
-          echo "Will merge on next run"
-          
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short
+
+      - name: Validate source imports
+        run: |
+          python -c "from src import SalesforceAgent, SalesforceClient, BulkClient, TaskQueue"
+
       - name: Report Status
         if: always()
         run: |
-          echo "✅ Autonomous agent completed"
+          echo "Autonomous agent completed"
           echo "Repo: ${{ github.repository }}"
           echo "Event: ${{ github.event_name }}"
-          echo "Status: Success - auto-handling enabled"

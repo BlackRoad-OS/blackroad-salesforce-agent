@@ -318,7 +318,7 @@ class SalesforceAgent:
                 "daily_api_requests": limits.get("DailyApiRequests", {}),
                 "bulk_api_requests": limits.get("DailyBulkApiRequests", {}),
             }
-        except:
+        except Exception:
             api_usage = {}
 
         return {

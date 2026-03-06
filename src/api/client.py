@@ -339,7 +339,7 @@ class SalesforceClient:
         """Handle API errors"""
         try:
             error_data = response.json()
-        except:
+        except (ValueError, KeyError):
             error_data = {'message': response.text}
 
         logger.error(
